@@ -10,7 +10,6 @@ class Player
 		@session = sess;
 		@incomingPackets = Queue.new
 		@mutex = Mutex.new
-		@incomingPacketId = -1
 	end
 
 	def addIncomingPacket(packet)
@@ -41,13 +40,5 @@ class Player
 	def username()
 		@username
 	end
-
-	def incomingPacketId=(id)
-		@incomingPacketId = id
-	end
-
-	def incomingPacketId()
-		@incomingPacketId
-	end
-
+	
 end

@@ -31,14 +31,9 @@ class ServerSingleton
 
 	def handleNetwork(session, player)
 		loop {
-				if player.incomingPacketId() == -1
-					player.incomingPacketId = (Integer(session.gets.chomp))
-				end
-
-				if player.incomingPacketId() != -1
-					parsePacket(session, player, player.incomingPacketId())
-					player.incomingPacketId = (-1)
-				end
+				# Packet parsing process
+				incomingPacket = (Integer(session.gets.chomp))
+				parsePacket(session, player, incomingPacket)
 		}
 	end
 
@@ -49,6 +44,7 @@ class ServerSingleton
 			direction = session.gets.chomp
 			packet.addData(direction)
 		end
+		
 		player.addIncomingPacket(packet)
 	end
 
