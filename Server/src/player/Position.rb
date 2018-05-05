@@ -15,6 +15,18 @@ class Position
 		@y = @y + deltaY
 	end
 
+	def getRegionX()
+		return (@x / 64).floor
+	end
+
+	def getRegionY()
+		return (@y / 64).floor
+	end
+
+	def getRegionId()
+		return getRegionX() << 16 | getRegionY()
+	end
+
 	def x()
 		@x
 	end
