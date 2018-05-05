@@ -1,6 +1,7 @@
 require "socket"
 require_relative "../player/Player"
 require_relative "../network/Packet"
+require_relative "../world/region/RegionManager"
 
 class ServerSingleton
 	# List of all the players registered
@@ -17,8 +18,8 @@ class ServerSingleton
 		loop {
 
 			Thread.start(@server.accept) do | session |
-					if session.gets.chomp  == "ACKNOWLEDGE"
-						player = Player.new(session.gets.chomp, 0, 0, session)
+					if session.gets.chomp == "ACKNOWLEDGE"
+						player = Player.new(session.gets.chomp, 30, 30, session)
 						session.puts("OK")
 						@@PlayingSession.store(session, player)
 						puts("Bienvenido jugador " + player.username() + ".")
@@ -41,7 +42,7 @@ class ServerSingleton
 		packet = Packet.new(packetId)
 		# Movement packet
 		if packet.packetId() == 0
-			direction = session.gets.chomp
+			direction = Integer(session.gets.chomp)
 			packet.addData(direction)
 		end
 		
@@ -49,16 +50,26 @@ class ServerSingleton
 	end
 
 	def handleWorld()
+		RegionManager.new
+		# Temporarily, change the cycle rate if needed
+		cycleRate = 200
+
 		loop {
 			start = Time.now.to_f
 
+			# Update every configuration before sending the packets
 			@@PlayingSession.each do |session, player|
-				player.process()
+				player.preProcess()
+			end
+
+			# Send the update packet
+			@@PlayingSession.each do |session, player|
+				player.postProcess()
 			end
 
 			finish = Time.now.to_f
 			
-			sleepTime = (600 - (finish - start)) / 1000.0
+			sleepTime = (cycleRate - (finish - start)) / 1000.0
 			#puts("Sleeping for " + (sleepTime * 1000).to_s + " milliseconds.")
 			sleep(sleepTime)
 		}
