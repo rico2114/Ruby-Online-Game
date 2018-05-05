@@ -1,5 +1,6 @@
 require 'gosu'
 require_relative "../network/Socket"
+require_relative "../player/Player"
 
 class Client < Gosu::Window
 
@@ -15,6 +16,9 @@ class Client < Gosu::Window
 		@loginIcon = Gosu::Image.new("../../media/loginIcon.png", :tileable => true)
 		# 0 login screen, 1 playing screen
 		@gameState = 0 
+		# Players near me
+		@myPlayer = Player.new(30, 30)
+		@players = []
 		# Display the screen
 		self.show
 	end
@@ -44,32 +48,51 @@ class Client < Gosu::Window
 			if @upcomingPacket == -1 and @socket.availableData() >= 1
 				@upcomingPacket = Integer(@socket.read())
 			end
-			# Find the size of that packet
-			size = -1
-			if @upcomingPacket == 0
-				size = 1
+			# Player updating packet ... fetch the size
+			if @upcomingPacket == 0 and @upcomingPacketSize == -1 and @socket.availableData() >= 1
+				@upcomingPacketSize = Integer(@socket.read())
+			elsif @upcomingPacket == 1
+				@upcomingPacketSize = 1
 			end
 			# We have enought data to parse that packet
-			if size != -1 and @socket.availableData >= size
-				# Parse walking
-				# TODO: Make a prettier system for parsing the packets
-				# Move this to another function
+			if @upcomingPacketSize != -1 and @upcomingPacket != -1 and @socket.availableData >= @upcomingPacketSize
+				# Player updating packet 
 				if @upcomingPacket == 0
-					dir = Integer(@socket.read())
-					if dir == 0
-						@playerX += 5
+					# Process local player
+					localMovement = Integer(@socket.read())
+					if localMovement == 1
+						dx = Integer(@socket.read())
+						dy = Integer(@socket.read())
+						@myPlayer.move(dx, dy)
 					end
-					if dir == 1
-						@playerX -= 5
+
+					# Process surrounding players
+					#surroundingPlayers = Integer(@socket.read())
+					surroundingPlayers = Integer(@socket.read())
+					while surroundingPlayers > 0
+						idx = Integer(@socket.read())
+						otherX = Integer(@socket.read())
+						otherY = Integer(@socket.read())
+
+						if @players[idx] == nil # OR IF PLAYER IS NOT ACTIVATED IN THE LIST
+							@players[idx] = Player.new(otherX, otherY)
+						end
+
+						moved = Integer(@socket.read())
+						if moved == 1
+							dx = Integer(@socket.read())
+							dy = Integer(@socket.read())
+							@players[idx].move(dx, dy)
+						end
+
+						surroundingPlayers -= 1
 					end
-					if dir == 2
-						@playerY -= 5
-					end
-					if dir == 3
-						@playerY += 5
-					end
+				elsif @upcomingPacket == 1
+					puts(@socket.read())
 				end
+
 				@upcomingPacket = -1
+				@upcomingPacketSize = -1
 			end
 		end
 	end
@@ -123,8 +146,7 @@ class Client < Gosu::Window
 						handleAsyncInput()
 						@gameState = 1
 						@upcomingPacket = -1
-						@playerX = 50
-						@playerY = 50
+						@upcomingPacketSize = -1
 						@playerImage = Gosu::Image.new("../../media/caracter.png", :tileable => true)
 						@loginIconScale = 0.1
 						puts("Inicio de sesion exitoso.")
@@ -158,7 +180,12 @@ class Client < Gosu::Window
 			@loginIcon.draw(@loginIconX, @loginIconY, 0, @loginIconScale, @loginIconScale)
 		else
 			# Playing screen
-			@playerImage.draw(@playerX, @playerY, 0, @loginIconScale, @loginIconScale)
+			@playerImage.draw(@myPlayer.x(), @myPlayer.y(), 0, @loginIconScale, @loginIconScale)
+			for otherPlayer in @players
+				if otherPlayer != nil
+					@playerImage.draw(otherPlayer.x(), otherPlayer.y(), 0, @loginIconScale, @loginIconScale)
+				end
+			end
 		end
 	end
 
