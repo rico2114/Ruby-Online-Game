@@ -4,6 +4,7 @@ require_relative "../network/Packet"
 require_relative "../world/region/RegionManager"
 
 class ServerSingleton
+
 	# List of all the players registered
 	@@PlayingSession = Hash.new
 	@@PlayingSessionMutex = Mutex.new
@@ -11,6 +12,7 @@ class ServerSingleton
 	def initialize(ip, port)
 		@server = TCPServer.open(ip, port)
 		gameThread = Thread.new{handleWorld()}
+
 		puts("Running game in world " + port.to_s + ".")
 	end
 
@@ -18,14 +20,40 @@ class ServerSingleton
 		loop {
 
 			Thread.start(@server.accept) do | session |
-					if session.gets.chomp == "ACKNOWLEDGE"
-						player = Player.new(session.gets.chomp, 30, 30, session)
-						session.puts("OK")
-						@@PlayingSessionMutex.synchronize {
-							@@PlayingSession.store(session, player)
-						}
-						puts("Bienvenido jugador " + player.username() + ".")
-						handleNetwork(session, player)
+					action = session.gets.chomp
+					# Active connection
+					if action == "LOGIN"
+						if session.gets.chomp == "ACKNOWLEDGE"
+							player = Player.new(session.gets.chomp, 30, 30, session)
+							session.puts("OK")
+							@@PlayingSessionMutex.synchronize {
+								@@PlayingSession.store(session, player)
+							}
+
+							# Check if the persistence file related to the player exists
+							path = "../../chars/" + player.username() + ".txt"
+							if File.file?(path)
+								player.setModelId(Integer(File.read(path).chomp.split(":")[1]))
+							end
+
+							puts("Bienvenido jugador " + player.username() + ".")
+							handleNetwork(session, player)
+						end
+
+					# Passive connection
+					elsif action == "PERSISTENCE"
+						username = session.gets.chomp
+						modelId = Integer(session.gets.chomp)
+
+						# Try to find if the user is online and replace its value
+						@@PlayingSession.each do |session, player|
+							if player.username() == username
+								player.setModelId(modelId)
+							end
+						end
+
+						File.write("../../chars/" + username + ".txt", "model_id:" + modelId.to_s + "\n")
+						Thread.exit
 					end
 			end
 
@@ -91,5 +119,5 @@ class ServerSingleton
 
 end
 
-singleton = ServerSingleton.new("localhost", 43595)
+singleton = ServerSingleton.new("localhost", 43594)
 singleton.run()
