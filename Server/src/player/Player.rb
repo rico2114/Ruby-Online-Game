@@ -15,6 +15,7 @@ class Player
 		@id = @@id
 		@username = name
 		@position = Position.new(x, y)
+		@modelId = 1
 		@session = sess;
 		@incomingPackets = Queue.new
 		@movementSystem = MovementSystem.new(self)
@@ -65,6 +66,8 @@ class Player
 			if player.id() != id()
 				# Solo procesaremos jugadores que esten en nuestra region
 				updatePacket.write(player.id().to_s)
+				updatePacket.write(player.username())
+				updatePacket.write(player.modelId().to_s)
 
 				# Send the position TODO: CACHE PLAYERS IN THE REGION SO WE AVOID RE SENDING POSITIONS
 				updatePacket.write(player.position().x().to_s)
@@ -100,6 +103,10 @@ class Player
 		updatePacket = Packet.new(0)
 		updatePacket.write("-1") # Temporarily for the packet size
 		processPlayerMovement(self, updatePacket)
+
+		# Write the model id
+		updatePacket.write(modelId().to_s)
+
 		# Process combat?
 		# Process actions
 		processOtherPlayers(updatePacket)
@@ -120,6 +127,14 @@ class Player
 
 	def id()
 		@id
+	end
+
+	def modelId()
+		@modelId
+	end
+
+	def setModelId(id)
+		@modelId = id
 	end
 
 	def position()
