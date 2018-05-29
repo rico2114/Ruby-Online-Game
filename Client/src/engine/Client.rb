@@ -34,16 +34,14 @@ class Client < Gosu::Window
 			loop {
 				# If we quitted the playing scene then we close this thread
 				@gameStateMutex.synchronize {
-					if @gameState == 0
+					if @gameState == 0 or @socket == nil
 						Thread.exit
 						return
 					end
 
 					# Otherwise if we still are playing we need to handle async input
 					# Add it to the socket
-					if @socket != nil
-						@socket.addData(@socket.blockingRead())	
-					end
+					@socket.addData(@socket.blockingRead())	
 				}							
 			}
 		end
@@ -77,8 +75,18 @@ class Client < Gosu::Window
 						@myPlayer.move(dx, dy)
 					end
 
-					# Process surrounding players
-					#surroundingPlayers = Integer(@socket.read())
+					# Register & Process surrounding players
+
+					# Mark all players disabled by default and then set them back to active after each process players packet
+					for player in @players do
+						if player != nil
+							player.deactivate()
+						end
+					end
+
+					# BEWARE: This approach is not the correct way to do it, eventually too many instances of the player class will be hold
+					# But they should be nulled on disconection.
+
 					surroundingPlayers = Integer(@socket.read())
 					while surroundingPlayers > 0
 						idx = Integer(@socket.read())
@@ -87,6 +95,9 @@ class Client < Gosu::Window
 
 						if @players[idx] == nil # OR IF PLAYER IS NOT ACTIVATED IN THE LIST
 							@players[idx] = Player.new(otherX, otherY)
+						else
+							# Activate only surrounding players (this sorts deregistrations of players easily)
+							@players[idx].activate()
 						end
 
 						moved = Integer(@socket.read())
@@ -223,7 +234,7 @@ class Client < Gosu::Window
 			# Playing screen
 			@playerImage.draw(@myPlayer.x(), @myPlayer.y(), 0, @loginIconScale, @loginIconScale)
 			for otherPlayer in @players
-				if otherPlayer != nil
+				if otherPlayer != nil and otherPlayer.active()
 					@playerImage.draw(otherPlayer.x(), otherPlayer.y(), 0, @loginIconScale, @loginIconScale)
 				end
 			end
