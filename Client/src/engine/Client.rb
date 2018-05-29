@@ -6,6 +6,8 @@ class Client < Gosu::Window
 
 	@@availableAddress = ["localhost", "localhost", "localhost"]
 	@@availablePorts = [43594, 43595, 43596]
+	#@@loginUsername = "Juan2114"
+	@@loginUsername = "Test"
 
 	def initialize()
 		super 640, 480
@@ -20,7 +22,7 @@ class Client < Gosu::Window
 		# 0 login screen, 1 playing screen
 		@gameState = 0 
 		# Players near me
-		@myPlayer = Player.new(30, 30)
+		@myPlayer = Player.new(@@loginUsername, 30, 30)
 		@lastPlayerUpdate = 0
 		@gameStateMutex = Mutex.new
 		# Display the screen
@@ -75,6 +77,8 @@ class Client < Gosu::Window
 						@myPlayer.move(dx, dy)
 					end
 
+					@myPlayer.setModelId(Integer(@socket.read()))
+
 					# Register & Process surrounding players
 
 					# Mark all players disabled by default and then set them back to active after each process players packet
@@ -90,15 +94,19 @@ class Client < Gosu::Window
 					surroundingPlayers = Integer(@socket.read())
 					while surroundingPlayers > 0
 						idx = Integer(@socket.read())
+						username = @socket.read()
+						modelId = Integer(@socket.read())
 						otherX = Integer(@socket.read())
 						otherY = Integer(@socket.read())
 
 						if @players[idx] == nil # OR IF PLAYER IS NOT ACTIVATED IN THE LIST
-							@players[idx] = Player.new(otherX, otherY)
+							@players[idx] = Player.new(username, otherX, otherY)
 						else
 							# Activate only surrounding players (this sorts deregistrations of players easily)
 							@players[idx].activate()
 						end
+
+						@players[idx].setModelId(modelId)
 
 						moved = Integer(@socket.read())
 						if moved == 1
@@ -143,7 +151,36 @@ class Client < Gosu::Window
 				@socket.write("0")
 				@socket.write("3")
 			end
+
 			@socket.flush()
+
+			# Cambio de modelo
+			if Gosu.button_down? Gosu::KB_1
+				dispatchPersistence(1)
+			elsif Gosu.button_down? Gosu::KB_2
+				dispatchPersistence(2)
+			elsif Gosu.button_down? Gosu::KB_3
+				dispatchPersistence(3)
+			end
+			
+		end
+	end
+
+	def dispatchPersistence(modelId)
+		i = @@availableAddress.length() - 1
+		while i >= 0
+			# Passive connection
+			socket = establishConnection(@@availableAddress[i], @@availablePorts[i].to_i)
+
+			if socket != nil
+				socket.puts("PERSISTENCE")
+				socket.puts(@myPlayer.username())
+				socket.puts(modelId)
+				socket.close()
+			end
+
+			
+			i -= 1
 		end
 	end
 
@@ -166,8 +203,9 @@ class Client < Gosu::Window
 		if _socket != nil
 			# TODO: Prevenir el spam click del login button!!!
 			@socket = Socket.new(_socket)
+			@socket.write("LOGIN")
 			@socket.write("ACKNOWLEDGE")
-			@socket.write("Juan2114")
+			@socket.write(@@loginUsername)
 			@socket.flush()
 			if @socket.blockingRead() == "OK"
 				# Habilito el input asincrono para no retrazar el juego
@@ -177,7 +215,12 @@ class Client < Gosu::Window
 				@lastPlayerUpdate = -1
 				@upcomingPacket = -1
 				@upcomingPacketSize = -1
-				@playerImage = Gosu::Image.new("../../media/caracter.png", :tileable => true)
+
+				@playerImage = []
+				@playerImage[0] = Gosu::Image.new("../../media/caracter_1.png", :tileable => true)
+				@playerImage[1] = Gosu::Image.new("../../media/caracter_2.png", :tileable => true)
+				@playerImage[2] = Gosu::Image.new("../../media/caracter_3.png", :tileable => true)
+
 				@loginIconScale = 0.1
 				puts("Inicio de sesion exitoso.")
 			else
@@ -232,10 +275,10 @@ class Client < Gosu::Window
 			@loginIcon.draw(@loginIconX, @loginIconY, 0, @loginIconScale, @loginIconScale)
 		else
 			# Playing screen
-			@playerImage.draw(@myPlayer.x(), @myPlayer.y(), 0, @loginIconScale, @loginIconScale)
+			@playerImage[@myPlayer.modelId() - 1].draw(@myPlayer.x(), @myPlayer.y(), 0, @loginIconScale, @loginIconScale)
 			for otherPlayer in @players
 				if otherPlayer != nil and otherPlayer.active()
-					@playerImage.draw(otherPlayer.x(), otherPlayer.y(), 0, @loginIconScale, @loginIconScale)
+					@playerImage[otherPlayer.modelId() - 1].draw(otherPlayer.x(), otherPlayer.y(), 0, @loginIconScale, @loginIconScale)
 				end
 			end
 		end
