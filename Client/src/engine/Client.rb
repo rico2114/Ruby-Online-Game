@@ -11,7 +11,7 @@ class Client < Gosu::Window
 
 	def initialize()
 		super 640, 480
-		self.caption = "Tutorial Game"
+		self.caption = "Juego de Redes"
 	end
 
 	def load()
@@ -77,7 +77,11 @@ class Client < Gosu::Window
 						@myPlayer.move(dx, dy)
 					end
 
-					@myPlayer.setModelId(Integer(@socket.read()))
+					modelId = Integer(@socket.read())
+					if @myPlayer.modelId() != modelId
+						@myPlayer.setModelId(modelId)
+						dispatchPersistence(modelId)
+					end
 
 					# Register & Process surrounding players
 
@@ -167,20 +171,22 @@ class Client < Gosu::Window
 	end
 
 	def dispatchPersistence(modelId)
-		i = @@availableAddress.length() - 1
-		while i >= 0
-			# Passive connection
-			socket = establishConnection(@@availableAddress[i], @@availablePorts[i].to_i)
+		# New thread to avoid delays on the main thread
+		Thread.new do
+			i = @@availableAddress.length() - 1
+			while i >= 0
+				# Passive connection
+				socket = establishConnection(@@availableAddress[i], @@availablePorts[i].to_i)
 
-			if socket != nil
-				socket.puts("PERSISTENCE")
-				socket.puts(@myPlayer.username())
-				socket.puts(modelId)
-				socket.close()
+				if socket != nil
+					socket.puts("PERSISTENCE")
+					socket.puts(@myPlayer.username())
+					socket.puts(modelId)
+					socket.close()
+				end
+
+				i -= 1
 			end
-
-			
-			i -= 1
 		end
 	end
 
