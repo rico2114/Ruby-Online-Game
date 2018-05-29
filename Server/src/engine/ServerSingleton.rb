@@ -11,6 +11,7 @@ class ServerSingleton
 
 	def initialize(ip, port)
 		@server = TCPServer.open(ip, port)
+		@@path = "../../chars_" + port.to_s + "/"
 		gameThread = Thread.new{handleWorld()}
 
 		puts("Running game in world " + port.to_s + ".")
@@ -31,7 +32,7 @@ class ServerSingleton
 							}
 
 							# Check if the persistence file related to the player exists
-							path = "../../chars/" + player.username() + ".txt"
+							path = @@path + player.username() + ".txt"
 							if File.file?(path)
 								player.setModelId(Integer(File.read(path).chomp.split(":")[1]))
 							end
@@ -52,7 +53,7 @@ class ServerSingleton
 							end
 						end
 
-						File.write("../../chars/" + username + ".txt", "model_id:" + modelId.to_s + "\n")
+						File.write(@@path + username + ".txt", "model_id:" + modelId.to_s + "\n")
 						Thread.exit
 					end
 			end
@@ -119,5 +120,5 @@ class ServerSingleton
 
 end
 
-singleton = ServerSingleton.new("localhost", 43594)
+singleton = ServerSingleton.new("localhost", 43595)
 singleton.run()
