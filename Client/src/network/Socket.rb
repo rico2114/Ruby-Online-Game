@@ -57,4 +57,8 @@ class Socket
 			@flushOffset += 1
 		end
 	end
+
+	def close()
+		@socket.close()
+	end
 end

@@ -4,6 +4,9 @@ require_relative "../player/Player"
 
 class Client < Gosu::Window
 
+	@@availableAddress = ["localhost", "localhost", "localhost"]
+	@@availablePorts = [43594, 43595, 43596]
+
 	def initialize()
 		super 640, 480
 		self.caption = "Tutorial Game"
@@ -18,7 +21,8 @@ class Client < Gosu::Window
 		@gameState = 0 
 		# Players near me
 		@myPlayer = Player.new(30, 30)
-		@players = []
+		@lastPlayerUpdate = 0
+		@gameStateMutex = Mutex.new
 		# Display the screen
 		self.show
 	end
@@ -29,14 +33,18 @@ class Client < Gosu::Window
 		Thread.new do
 			loop {
 				# If we quitted the playing scene then we close this thread
-				if @gameState == 0
-					Thread.exit
-					return
-				end
+				@gameStateMutex.synchronize {
+					if @gameState == 0
+						Thread.exit
+						return
+					end
 
-				# Otherwise if we still are playing we need to handle async input
-				# Add it to the socket
-				@socket.addData(@socket.blockingRead())
+					# Otherwise if we still are playing we need to handle async input
+					# Add it to the socket
+					if @socket != nil
+						@socket.addData(@socket.blockingRead())	
+					end
+				}							
 			}
 		end
 	end
@@ -58,6 +66,9 @@ class Client < Gosu::Window
 			if @upcomingPacketSize != -1 and @upcomingPacket != -1 and @socket.availableData >= @upcomingPacketSize
 				# Player updating packet 
 				if @upcomingPacket == 0
+					# Note that player updating procedure serves as a ping instruction too because this part is fundamental in the cycle of the game
+					# If this fails the whole game fails
+					@lastPlayerUpdate = Time.now.to_f
 					# Process local player
 					localMovement = Integer(@socket.read())
 					if localMovement == 1
@@ -134,30 +145,46 @@ class Client < Gosu::Window
 				and @mouseY >= @loginIconY and @mouseY <= @loginIconY + (@loginIcon.height * @loginIconScale)\
 				and button_down?(Gosu::MsLeft)
 
-				_socket = establishConnection("localhost", 43594)
-				if _socket != nil
-					# TODO: Prevenir el spam click del login button!!!
-					@socket = Socket.new(_socket)
-					@socket.write("ACKNOWLEDGE")
-					@socket.write("Juan2114")
-					@socket.flush()
-					if @socket.blockingRead() == "OK"
-						# Habilito el input asincrono para no retrazar el juego
-						handleAsyncInput()
-						@gameState = 1
-						@upcomingPacket = -1
-						@upcomingPacketSize = -1
-						@playerImage = Gosu::Image.new("../../media/caracter.png", :tileable => true)
-						@loginIconScale = 0.1
-						puts("Inicio de sesion exitoso.")
-					else
-						puts("Fallo al iniciar sesion.")
-					end
-				else
-					puts("Main server is offline.")
-				end
+				login()
 			end
 		end
+	end
+
+	def login()
+		_socket = findSuitableServer()
+		if _socket != nil
+			# TODO: Prevenir el spam click del login button!!!
+			@socket = Socket.new(_socket)
+			@socket.write("ACKNOWLEDGE")
+			@socket.write("Juan2114")
+			@socket.flush()
+			if @socket.blockingRead() == "OK"
+				# Habilito el input asincrono para no retrazar el juego
+				handleAsyncInput()
+				@players = []
+				@gameState = 1
+				@lastPlayerUpdate = -1
+				@upcomingPacket = -1
+				@upcomingPacketSize = -1
+				@playerImage = Gosu::Image.new("../../media/caracter.png", :tileable => true)
+				@loginIconScale = 0.1
+				puts("Inicio de sesion exitoso.")
+			else
+				puts("Fallo al iniciar sesion.")
+			end
+		else
+			puts("Servers are offline.")
+		end
+	end
+
+	def findSuitableServer()
+		i = @@availableAddress.length() - 1
+		socket = nil
+		while i >= 0 and socket == nil
+			socket = establishConnection(@@availableAddress[i], @@availablePorts[i].to_i)
+			i -= 1
+		end
+		return socket
 	end
 
 	def establishConnection(address, port)
@@ -171,6 +198,20 @@ class Client < Gosu::Window
 		processKeyboard()
 		processMouse()
 		processIncomingPackets()
+
+		if @gameState == 1 and @lastPlayerUpdate != -1
+			# Check for server disconnection
+			elapsed = (Time.now.to_f - @lastPlayerUpdate)
+			# 3 = 2 server cycles + 1 extra of offset to ensure packets are not actually arriving
+			if elapsed > 3
+				@gameStateMutex.synchronize {
+					@gameState = 0
+					@socket.close()
+					@socket = nil
+				}
+				login()
+			end
+		end
 	end
 
 	def draw()
