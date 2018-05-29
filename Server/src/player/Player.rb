@@ -22,6 +22,7 @@ class Player
 		# TODO: CHANGE THIS MAKE THIS ACTUALLY BE USED WHEN MOVING SO WE CHANGE REGIONS
 		@region = RegionManager.regionByPosition(@position)
 		@region.addPlayer(self)
+		
 		@mutex = Mutex.new
 		@@id += 1
 	end

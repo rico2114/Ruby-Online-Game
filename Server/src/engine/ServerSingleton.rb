@@ -21,7 +21,9 @@ class ServerSingleton
 					if session.gets.chomp == "ACKNOWLEDGE"
 						player = Player.new(session.gets.chomp, 30, 30, session)
 						session.puts("OK")
-						@@PlayingSession.store(session, player)
+						@@PlayingSessionMutex.synchronize {
+							@@PlayingSession.store(session, player)
+						}
 						puts("Bienvenido jugador " + player.username() + ".")
 						handleNetwork(session, player)
 					end
@@ -32,9 +34,18 @@ class ServerSingleton
 
 	def handleNetwork(session, player)
 		loop {
+			begin
 				# Packet parsing process
 				incomingPacket = (Integer(session.gets.chomp))
 				parsePacket(session, player, incomingPacket)
+			rescue
+				puts("El jugador " + player.username() + " se ha desconectado.")
+				@@PlayingSessionMutex.synchronize {
+					player.region().removePlayer(player)
+					@@PlayingSession.delete(session)
+				}
+				Thread.exit
+			end
 		}
 	end
 
@@ -57,15 +68,18 @@ class ServerSingleton
 		loop {
 			start = Time.now.to_f
 
-			# Update every configuration before sending the packets
-			@@PlayingSession.each do |session, player|
-				player.preProcess()
-			end
+			# Synchronize over the players
+			@@PlayingSessionMutex.synchronize {
+				# Update every configuration before sending the packets
+				@@PlayingSession.each do |session, player|
+					player.preProcess()
+				end
 
-			# Send the update packet
-			@@PlayingSession.each do |session, player|
-				player.postProcess()
-			end
+				# Send the update packet
+				@@PlayingSession.each do |session, player|
+					player.postProcess()
+				end
+			}
 
 			finish = Time.now.to_f
 			
@@ -77,5 +91,5 @@ class ServerSingleton
 
 end
 
-singleton = ServerSingleton.new("localhost", 43594)
+singleton = ServerSingleton.new("localhost", 43595)
 singleton.run()
