@@ -6,8 +6,8 @@ class Client < Gosu::Window
 
 	@@availableAddress = ["localhost", "localhost", "localhost"]
 	@@availablePorts = [43594, 43595, 43596]
-	#@@loginUsername = "Juan2114"
-	@@loginUsername = "Test"
+	@@loginUsername = "Juan2114"
+	#@@loginUsername = "Test"
 
 	def initialize()
 		super 640, 480

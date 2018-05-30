@@ -120,5 +120,5 @@ class ServerSingleton
 
 end
 
-singleton = ServerSingleton.new("localhost", 43595)
+singleton = ServerSingleton.new("localhost", 43596)
 singleton.run()
