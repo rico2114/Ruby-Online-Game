@@ -2,6 +2,8 @@ require "socket"
 require_relative "../player/Player"
 require_relative "../network/Packet"
 require_relative "../world/region/RegionManager"
+require_relative "PersistenceServer"
+require_relative "PersistenceManager"
 
 class ServerSingleton
 
@@ -10,8 +12,29 @@ class ServerSingleton
 	@@PlayingSessionMutex = Mutex.new
 
 	def initialize(ip, port)
-		@server = TCPServer.open(ip, port)
+		# Path to store chars
 		@@path = "../../chars_" + port.to_s + "/"
+		# Networking. Game world aceptance
+		@server = TCPServer.open(ip, port)
+		@@gameAddress = ["localhost", "localhost"]
+
+		# Startup configs
+		if port == 43594
+			@@persistenceServerPorts = [43597, 43599]
+		elsif port == 43596
+			@@persistenceServerPorts = [43595, 43599]
+		else
+			@@persistenceServerPorts = [43595, 43597]
+		end
+
+
+		# Persistence aceptance
+		persistence = PersistenceServer.new(ip, port + 1, @@path)
+		persistence.start()
+
+		# Persistence manager
+		@persistenceManager = PersistenceManager.new(@@gameAddress, @@persistenceServerPorts, port.to_s)
+
 		gameThread = Thread.new{handleWorld()}
 
 		puts("Running game in world " + port.to_s + ".")
@@ -25,7 +48,7 @@ class ServerSingleton
 					# Active connection
 					if action == "LOGIN"
 						if session.gets.chomp == "ACKNOWLEDGE"
-							player = Player.new(session.gets.chomp, 30, 30, session)
+							player = Player.new(session.gets.chomp, 30, 30, session, @persistenceManager)
 							session.puts("OK")
 							@@PlayingSessionMutex.synchronize {
 								@@PlayingSession.store(session, player)
@@ -35,26 +58,12 @@ class ServerSingleton
 							path = @@path + player.username() + ".txt"
 							if File.file?(path)
 								player.setModelId(Integer(File.read(path).chomp.split(":")[1]))
+								#todo: missing player coordinates
 							end
 
 							puts("Bienvenido jugador " + player.username() + ".")
 							handleNetwork(session, player)
 						end
-
-					# Passive connection
-					elsif action == "PERSISTENCE"
-						username = session.gets.chomp
-						modelId = Integer(session.gets.chomp)
-
-						# Try to find if the user is online and replace its value
-						@@PlayingSession.each do |session, player|
-							if player.username() == username
-								player.setModelId(modelId)
-							end
-						end
-
-						File.write(@@path + username + ".txt", "model_id:" + modelId.to_s + "\n")
-						Thread.exit
 					end
 			end
 
@@ -72,6 +81,7 @@ class ServerSingleton
 				@@PlayingSessionMutex.synchronize {
 					player.region().removePlayer(player)
 					@@PlayingSession.delete(session)
+					File.write(@@path + username + ".txt", "model_id:" + player.modelId() + "\n")
 				}
 				Thread.exit
 			end
@@ -84,6 +94,9 @@ class ServerSingleton
 		if packet.packetId() == 0
 			direction = Integer(session.gets.chomp)
 			packet.addData(direction)
+		elsif packet.packetId() == 1
+			modelId = Integer(session.gets.chomp)
+			packet.addData(modelId)
 		end
 		
 		player.addIncomingPacket(packet)
@@ -120,5 +133,5 @@ class ServerSingleton
 
 end
 
-singleton = ServerSingleton.new("localhost", 43596)
+singleton = ServerSingleton.new("localhost", 43598)
 singleton.run()
