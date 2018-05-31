@@ -7,7 +7,7 @@ class Client < Gosu::Window
 
 	#@@availableAddress = ["192.168.121.19", "192.168.121.18", "192.168.121.38"]
 	@@availableAddress = ["localhost", "localhost", "localhost"]
-	@@availablePorts = [43594, 43595, 43596]
+	@@availablePorts = [43594, 43596, 43598]
 	@@loginUsername = "Juan2114"
 	#@@loginUsername = "Test"
 
@@ -82,7 +82,6 @@ class Client < Gosu::Window
 					modelId = Integer(@socket.read())
 					if @myPlayer.modelId() != modelId
 						@myPlayer.setModelId(modelId)
-						dispatchPersistence(modelId)
 					end
 
 					# Register & Process surrounding players
@@ -158,37 +157,19 @@ class Client < Gosu::Window
 				@socket.write("3")
 			end
 
-			@socket.flush()
-
 			# Cambio de modelo
 			if Gosu.button_down? Gosu::KB_1
-				dispatchPersistence(1)
+				@socket.write("1")
+				@socket.write("1")
 			elsif Gosu.button_down? Gosu::KB_2
-				dispatchPersistence(2)
+				@socket.write("1")
+				@socket.write("2")
 			elsif Gosu.button_down? Gosu::KB_3
-				dispatchPersistence(3)
+				@socket.write("1")
+				@socket.write("3")
 			end
-			
-		end
-	end
 
-	def dispatchPersistence(modelId)
-		# New thread to avoid delays on the main thread
-		Thread.new do
-			i = @@availableAddress.length() - 1
-			while i >= 0
-				# Passive connection
-				socket = establishConnection(@@availableAddress[i], @@availablePorts[i].to_i)
-
-				if socket != nil
-					socket.puts("PERSISTENCE")
-					socket.puts(@myPlayer.username())
-					socket.puts(modelId)
-					socket.close()
-				end
-
-				i -= 1
-			end
+			@socket.flush()
 		end
 	end
 
