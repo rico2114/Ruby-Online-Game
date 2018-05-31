@@ -1,9 +1,11 @@
 require 'gosu'
 require_relative "../network/Socket"
 require_relative "../player/Player"
+require 'timeout'
 
 class Client < Gosu::Window
 
+	#@@availableAddress = ["192.168.121.19", "192.168.121.18", "192.168.121.38"]
 	@@availableAddress = ["localhost", "localhost", "localhost"]
 	@@availablePorts = [43594, 43595, 43596]
 	@@loginUsername = "Juan2114"
@@ -35,7 +37,7 @@ class Client < Gosu::Window
 		Thread.new do
 			loop {
 				# If we quitted the playing scene then we close this thread
-				@gameStateMutex.synchronize {
+				#@gameStateMutex.synchronize {
 					if @gameState == 0 or @socket == nil
 						Thread.exit
 						return
@@ -44,7 +46,7 @@ class Client < Gosu::Window
 					# Otherwise if we still are playing we need to handle async input
 					# Add it to the socket
 					@socket.addData(@socket.blockingRead())	
-				}							
+				#}							
 			}
 		end
 	end
@@ -242,6 +244,9 @@ class Client < Gosu::Window
 		socket = nil
 		while i >= 0 and socket == nil
 			socket = establishConnection(@@availableAddress[i], @@availablePorts[i].to_i)
+			if socket != nil
+				puts("Conectandose al puerto: " + @@availablePorts[i].to_s)
+			end
 			i -= 1
 		end
 		return socket
@@ -249,7 +254,7 @@ class Client < Gosu::Window
 
 	def establishConnection(address, port)
 		socket = TCPSocket.open(address, port)
-		rescue Errno::ECONNREFUSED => e
+		rescue Errno::ECONNREFUSED, Errno::ETIMEDOUT => e
 			socket = nil
 		return socket
 	end
@@ -264,11 +269,13 @@ class Client < Gosu::Window
 			elapsed = (Time.now.to_f - @lastPlayerUpdate)
 			# 3 = 2 server cycles + 1 extra of offset to ensure packets are not actually arriving
 			if elapsed > 3
-				@gameStateMutex.synchronize {
+				#@gameStateMutex.synchronize {
 					@gameState = 0
 					@socket.close()
 					@socket = nil
-				}
+				#}
+
+				puts("Intentando reconectar!")
 				login()
 			end
 		end
