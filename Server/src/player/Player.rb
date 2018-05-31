@@ -11,10 +11,11 @@ class Player
 	# Identifies the player id (static id carrying the count)
 	@@id = 0
 
-	def initialize(name, x, y, sess)
+	def initialize(name, x, y, sess, persManagerRef)
 		@id = @@id
 		@username = name
 		@position = Position.new(x, y)
+		@persistenceManagerReference = persManagerRef
 		@modelId = 1
 		@session = sess;
 		@incomingPackets = Queue.new
@@ -52,6 +53,10 @@ class Player
 					elsif direction == 3
 						@movementSystem.addMovement(0, +multiplier)						
 					end
+				elsif packet.packetId() == 1
+					modelId = packet.read()
+					setModelId(modelId)
+					@persistenceManagerReference.addToQueues(self)
 				end
 			end
 		}
